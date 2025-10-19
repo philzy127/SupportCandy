@@ -5,7 +5,7 @@ Tags: support, helpdesk, ticketing system, customer support, ticket
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 3.3.9
+Stable tag: 3.4.1
 
 Enhance your WordPress site with our helpdesk and support ticket system. Manage customer support, tickets, and email tickets efficiently.
 
@@ -102,33 +102,6 @@ SupportCandy is a self-hosted support ticket plugin offers limitless tickets, su
 * Company, Hotel or Real Estate Service-Desk
 * To-Do List Management
 
-= Available Translations : =
-Available in 20+ languages. Also compatible with popular translation plugins like WPML, Polylang, Loco Translate, etc.
-* Arabic
-* French (France)
-* German (Germany)
-* Dutch (Netherlands)
-* Italian (Italy)
-* Portuguese (Portugal)
-* Spanish (Spain)
-* Chinese (China)
-* Chinese (Traditional)
-* Russian
-* Hebrew
-* Greek
-* Portuguese (Brazil)
-* Turkish
-* Swedish
-* Hungerian
-* Polish
-* Persian
-* Dutch (Belgium)
-* Japanese
-* Moroccan Arabic
-* Czech
-
-If you are a translator, you can get free access to all premium add-ons for a year in exchange for translating them into your language if it is not available already. We will renew the Premium subscription next year if you continue contributing to the translation. If interested, don't hesitate to contact us via our [support page](https://supportcandy.net/support-ticket/).
-
 = Our Other Plugins =
 * [PSM Multi Currency Switcher & Currency Converter for WooCommerce](https://psmplugins.com/multi-currency-for-woocommerce/) - Offer your customers a seamless multi-currency shopping experience. This plugin automatically updates exchange rates, detects your customer's currency by their location, and provides robust switching options so you can sell around the world with ease.
 
@@ -224,6 +197,13 @@ SupportCandy Helpdesk allows unlimited file attachments to tickets and replies, 
 18. Report - Rating (Premium)
 
 == Changelog ==
+
+= 3.4.1 (October 08, 2025) =
+Fix: Translations not loading.
+
+= 3.4.0 (October 08, 2025) =
+New: Added database indexing to improve performance.
+Fix: Improved error handling when using an already registered email address during registration.
 
 = 3.3.9 (September 24, 2025) =
 Fix: User registration and Open ticket features are not working

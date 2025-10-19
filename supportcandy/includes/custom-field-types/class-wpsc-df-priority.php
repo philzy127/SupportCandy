@@ -297,11 +297,11 @@ if ( ! class_exists( 'WPSC_DF_Priority' ) ) :
 					break;
 
 				case 'IN':
-					$str = 'CONVERT(t.' . $cf->slug . ' USING utf8) IN(\'' . implode( '\', \'', esc_sql( $val ) ) . '\')';
+					$str = 't.' . $cf->slug . ' IN(\'' . implode( '\', \'', esc_sql( $val ) ) . '\')';
 					break;
 
 				case 'NOT IN':
-					$str = 'CONVERT(t.' . $cf->slug . ' USING utf8) NOT IN(\'' . implode( '\', \'', esc_sql( $val ) ) . '\')';
+					$str = 't.' . $cf->slug . ' NOT IN(\'' . implode( '\', \'', esc_sql( $val ) ) . '\')';
 					break;
 
 				default:

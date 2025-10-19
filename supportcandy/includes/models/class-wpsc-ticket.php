@@ -547,7 +547,7 @@ if ( ! class_exists( 'WPSC_Ticket' ) ) :
 
 					// Get custom field object for the slug.
 					$cf = WPSC_Custom_Field::get_cf_by_slug( $slug );
-					if( $cf ) {
+					if ( $cf ) {
 						$filter_str[] = $cf->type::parse_filter( $cf, $compare, $val );
 					}
 				}

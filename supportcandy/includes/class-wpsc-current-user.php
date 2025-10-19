@@ -91,7 +91,7 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 
 			// default registration.
 			add_action( 'wp_ajax_nopriv_wpsc_get_default_registration', array( __CLASS__, 'get_user_registration' ) );
-			add_action( 'wp_ajax_nopriv_wpsc_check_username_availability', array( __CLASS__, 'check_username_availability' ) );
+			add_action( 'wp_ajax_nopriv_wpsc_check_user_availability', array( __CLASS__, 'check_user_availability' ) );
 			add_action( 'wp_ajax_nopriv_wpsc_authenticate_registration', array( __CLASS__, 'send_registration_otp' ) );
 			add_action( 'wp_ajax_nopriv_wpsc_confirm_registration', array( __CLASS__, 'register_user' ) );
 
@@ -432,7 +432,7 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 							jQuery('#wpsc-username-available').hide();
 							jQuery('#wpsc-username-unavailable').hide();
 							var username = jQuery(this).val().trim();
-							const data = { action: 'wpsc_check_username_availability', username, _ajax_nonce: '<?php echo esc_attr( wp_create_nonce( 'wpsc_check_username_availability' ) ); ?>' };
+							const data = { action: 'wpsc_check_user_availability', type : 'username', username, _ajax_nonce: '<?php echo esc_attr( wp_create_nonce( 'wpsc_check_user_availability' ) ); ?>' };
 							jQuery.post(supportcandy.ajax_url, data, function (response) {
 								jQuery('input[name=is_username]').val(response.isAvailable);
 								if (response.isAvailable == 1) {
@@ -447,7 +447,30 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 					</script>
 				</div>
 
-				<input type="text" name="email_address" placeholder="<?php esc_attr_e( 'Email Address', 'supportcandy' ); ?>" autocomplete="off"/>
+				<div style="margin: 0 0 5px !important;">
+					<input id="wpsc-email" type="text" name="email_address" style="margin-bottom: 0px !important;" placeholder="<?php esc_attr_e( 'Email Address', 'supportcandy' ); ?>" autocomplete="off"/>
+					<small id="wpsc-email-unavailable" style="color: #e84118;font-style:italic;display:none;"><?php esc_attr_e( 'Email is already taken!', 'supportcandy' ); ?></small>
+					<small id="wpsc-email-available" style="color: #4cd137;font-style:italic;display:none;"><?php esc_attr_e( 'Email is available!', 'supportcandy' ); ?></small>
+					<script>
+						jQuery('#wpsc-email').change(function(){
+							console.log('email changed');
+							jQuery('#wpsc-email-available').hide();
+							jQuery('#wpsc-email-unavailable').hide();
+							var email = jQuery(this).val().trim();
+							const data = { action: 'wpsc_check_user_availability', type: 'email', email, _ajax_nonce: '<?php echo esc_attr( wp_create_nonce( 'wpsc_check_user_availability' ) ); ?>' };
+							jQuery.post(supportcandy.ajax_url, data, function (response) {
+								jQuery('input[name=is_email]').val(response.isAvailable);
+								if (response.isAvailable == 1) {
+									jQuery('#wpsc-email-unavailable').hide();
+									jQuery('#wpsc-email-available').show();
+								} else {
+									jQuery('#wpsc-email-available').hide();
+									jQuery('#wpsc-email-unavailable').show();
+								}
+							});
+						});
+					</script>
+				</div>
 				<input type="password" name="password" placeholder="<?php esc_attr_e( 'Password', 'supportcandy' ); ?>"/>
 				<input type="password" name="confirm_password" placeholder="<?php esc_attr_e( 'Confirm Password', 'supportcandy' ); ?>"/>
 				<?php
@@ -516,6 +539,7 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 				<button class="wpsc-button normal secondary" onclick="window.location.reload();"><?php esc_attr_e( 'Cancel', 'supportcandy' ); ?></button>
 				<input type="hidden" name="action" value="wpsc_authenticate_registration"/>
 				<input type="hidden" name="is_username" value="0"/>
+				<input type="hidden" name="is_email" value="0"/>
 				<input type="hidden" name="_ajax_nonce" value="<?php echo esc_attr( wp_create_nonce( 'wpsc_authenticate_registration' ) ); ?>">
 			</form>
 			<?php
@@ -527,9 +551,9 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 		 *
 		 * @return void
 		 */
-		public static function check_username_availability() {
+		public static function check_user_availability() {
 
-			if ( check_ajax_referer( 'wpsc_check_username_availability', '_ajax_nonce', false ) != 1 ) {
+			if ( check_ajax_referer( 'wpsc_check_user_availability', '_ajax_nonce', false ) != 1 ) {
 				wp_send_json_error( 'Unauthorised request!', 401 );
 			}
 
@@ -538,12 +562,23 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 				wp_send_json_error( __( 'Unauthorized', 'supportcandy' ), 401 );
 			}
 
-			$username = isset( $_POST['username'] ) ? sanitize_text_field( wp_unslash( $_POST['username'] ) ) : '';
-			if ( ! $username ) {
+			$type = isset( $_POST['type'] ) ? sanitize_text_field( wp_unslash( $_POST['type'] ) ) : '';
+			if ( in_array( $type, array( 'username', 'email' ) ) === false ) {
 				wp_send_json_error( 'Something went wrong', 400 );
 			}
 
-			$flag = self::is_username_available( $username );
+			if ( $type === 'username' ) {
+				$username = isset( $_POST['username'] ) ? sanitize_text_field( wp_unslash( $_POST['username'] ) ) : '';
+				if ( ! $username ) {
+					wp_send_json_error( 'Something went wrong', 400 );
+				}
+			} elseif ( $type === 'email' ) {
+				$email = isset( $_POST['email'] ) && filter_var( wp_unslash( $_POST['email'] ), FILTER_VALIDATE_EMAIL ) ? sanitize_text_field( wp_unslash( $_POST['email'] ) ) : '';
+				if ( ! $email ) {
+					wp_send_json_error( 'Something went wrong', 400 );
+				}
+			}
+			$flag = $type === 'username' ? self::is_username_available( $username ) : self::is_email_available( $email );
 
 			wp_send_json( array( 'isAvailable' => $flag ? 0 : 1 ) );
 		}
@@ -589,8 +624,7 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 				wp_send_json_error( 'Bad request', 400 );
 			}
 
-			$user = get_user_by( 'email', $email_address );
-			if ( $user ) {
+			if ( self::is_email_available( $email_address ) ) {
 				wp_send_json_error( 'Bad request', 400 );
 			}
 
@@ -643,6 +677,18 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 		public static function is_username_available( $username ) {
 
 			$user = get_user_by( 'login', $username );
+			return $user ? true : false;
+		}
+
+		/**
+		 * Checks whether email is available or not
+		 *
+		 * @param string $email - email string.
+		 * @return boolean
+		 */
+		public static function is_email_available( $email ) {
+
+			$user = get_user_by( 'email', $email );
 			return $user ? true : false;
 		}
 

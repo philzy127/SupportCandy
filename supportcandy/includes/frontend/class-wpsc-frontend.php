@@ -392,6 +392,7 @@ if ( ! class_exists( 'WPSC_Frontend' ) ) :
 						var password = dataform.get('password').trim();
 						var confirm_password = dataform.get('confirm_password').trim();
 						var isUsername = dataform.get('is_username').trim();
+						var isEmail = dataform.get('is_email').trim();
 
 						<?php
 						if ( $tc['allow-term-and-conditions-reg-user'] ) {
@@ -426,6 +427,11 @@ if ( ! class_exists( 'WPSC_Frontend' ) ) :
 
 						if (isUsername != 1) {
 							alert(supportcandy.translations.unsername_unavailable);
+							return;
+						}
+
+						if (isEmail != 1) {
+							alert(supportcandy.translations.email_unavailable);
 							return;
 						}
 

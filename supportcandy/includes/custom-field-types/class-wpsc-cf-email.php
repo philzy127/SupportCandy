@@ -557,7 +557,7 @@ if ( ! class_exists( 'WPSC_CF_Email' ) ) :
 		 */
 		public static function get_tff_value( $slug, $cf = false ) {
 
-			$email = isset( $_POST[ $slug ] ) ? sanitize_text_field( wp_unslash( $_POST[ $slug ] ) ) : ''; // phpcs:ignore
+			$email = isset( $_POST[ $slug ] ) ? strtolower( sanitize_text_field( wp_unslash( $_POST[ $slug ] ) ) ) : ''; // phpcs:ignore
 			if ( ! filter_var( $email, FILTER_VALIDATE_EMAIL ) ) {
 				$email = '';
 			}
@@ -809,7 +809,7 @@ if ( ! class_exists( 'WPSC_CF_Email' ) ) :
 		 */
 		public static function get_cf_input_val( $cf ) {
 
-			$email = isset( $_POST[ $cf->slug ] ) ? sanitize_text_field( wp_unslash( $_POST[ $cf->slug ] ) ) : ''; // phpcs:ignore
+			$email = isset( $_POST[ $cf->slug ] ) ? strtolower( sanitize_text_field( wp_unslash( $_POST[ $cf->slug ] ) ) ) : ''; // phpcs:ignore
 			return $email && filter_var( $email, FILTER_VALIDATE_EMAIL ) ? $email : '';
 		}
 
@@ -856,7 +856,7 @@ if ( ! class_exists( 'WPSC_CF_Email' ) ) :
 		public static function set_edit_ticket_cf( $cf, $ticket ) {
 
 			$prev = $ticket->{$cf->slug} ? $ticket->{$cf->slug} : '';
-			$new  = isset( $_POST[ $cf->slug ] ) ? sanitize_text_field( wp_unslash( $_POST[ $cf->slug ] ) ) : ''; // phpcs:ignore
+			$new  = isset( $_POST[ $cf->slug ] ) ? strtolower( sanitize_text_field( wp_unslash( $_POST[ $cf->slug ] ) ) ) : ''; // phpcs:ignore
 			if ( $new && ! filter_var( $new, FILTER_VALIDATE_EMAIL ) ) {
 				return $ticket;
 			}
@@ -1234,7 +1234,7 @@ if ( ! class_exists( 'WPSC_CF_Email' ) ) :
 
 			// default value.
 			if ( in_array( 'default_value', $field_class::$allowed_properties ) ) {
-				$default_value     = isset( $_POST['default_value'] ) ? sanitize_email( wp_unslash( $_POST['default_value'] ) ) : ''; // phpcs:ignore
+				$default_value     = isset( $_POST['default_value'] ) ? strtolower( sanitize_email( wp_unslash( $_POST['default_value'] ) ) ) : ''; // phpcs:ignore
 				$cf->default_value = $default_value ? array( $default_value ) : array();
 			}
 

@@ -1923,6 +1923,9 @@ if ( ! class_exists( 'WPSC_Installation' ) ) :
 
 			self::attachment_security_file();
 
+			// Create required database indexes.
+			self::create_indexing();
+
 			// update string translations.
 			update_option( 'wpsc-string-translation', $string_translations );
 		}
@@ -2560,6 +2563,11 @@ if ( ! class_exists( 'WPSC_Installation' ) ) :
 				$wpdb->query( "ALTER TABLE {$wpdb->prefix}psmsc_email_otp MODIFY otp VARCHAR(10) NOT NULL" );
 			}
 
+			if ( version_compare( self::$current_version, '3.4.0', '<' ) ) {
+				// Create required database indexes.
+				self::create_indexing();
+			}
+
 			update_option( 'wpsc-string-translation', $string_translations );
 			self::set_upgrade_complete();
 		}
@@ -2597,6 +2605,45 @@ if ( ! class_exists( 'WPSC_Installation' ) ) :
 			$wpsc_dir = $upload_dir['basedir'] . '/wpsc';
 			if ( ! is_file( $wpsc_dir . '/.htaccess' ) ) {
 				@file_put_contents( $wpsc_dir . '/.htaccess', 'deny from all' ); //phpcs:ignore
+			}
+		}
+
+		/**
+		 * Create required database indexes
+		 *
+		 * @return void
+		 */
+		private static function create_indexing() {
+
+			global $wpdb;
+
+			$column_slugs = array( 'status', 'customer', 'category', 'priority', 'date_updated', 'date_created', 'date_closed' );
+			foreach ( $column_slugs as $slug ) {
+				$index_name = "idx_cf_{$slug}";
+
+				// Check if index already exists.
+				$index_exists = $wpdb->get_var(
+					$wpdb->prepare(
+						"SHOW INDEX FROM {$wpdb->prefix}psmsc_tickets WHERE Key_name = %s",
+						$index_name
+					)
+				);
+
+				if ( ! $index_exists ) {
+					$wpdb->query( "ALTER TABLE {$wpdb->prefix}psmsc_tickets ADD INDEX {$index_name} (`{$slug}`)" );
+				}
+			}
+
+			// create index on thread table.
+			$index_name = 'idx_ticket_id';
+			$index_exists = $wpdb->get_var(
+				$wpdb->prepare(
+					"SHOW INDEX FROM {$wpdb->prefix}psmsc_threads WHERE Key_name = %s",
+					$index_name
+				)
+			);
+			if ( ! $index_exists ) {
+				$wpdb->query( "ALTER TABLE {$wpdb->prefix}psmsc_threads ADD INDEX {$index_name} (ticket)" );
 			}
 		}
 	}

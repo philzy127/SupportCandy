@@ -666,7 +666,7 @@ if ( ! class_exists( 'WPSC_New_Ticket' ) ) :
 				wp_send_json_error( 'Bad request', 400 );
 			}
 
-			$email = isset( $_POST['email'] ) ? sanitize_text_field( wp_unslash( $_POST['email'] ) ) : '';
+			$email = isset( $_POST['email'] ) ? strtolower( sanitize_text_field( wp_unslash( $_POST['email'] ) ) ) : '';
 			if ( ! $email || ! filter_var( $email, FILTER_VALIDATE_EMAIL ) ) {
 				wp_send_json_error( 'Bad request', 400 );
 			}
