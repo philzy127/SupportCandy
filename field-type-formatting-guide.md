@@ -8,6 +8,52 @@ The `WPSC_Ticket` object uses a `__get` magic method to return values. For simpl
 
 ---
 
+### **Programmatic Field Discovery (API-First Approach)**
+
+While the static reference table below is useful, the recommended API-first approach is to get the list of fields directly from the plugin.
+
+The `WPSC_Custom_Field` class is the central manager for all ticket fields. After the WordPress `init` action has run (at priority 10), it makes a complete list of all registered fields—both custom and default—available in a **public static property**.
+
+**Property:** `WPSC_Custom_Field::$custom_fields`
+
+This is an associative array where keys are field `slugs` and values are `WPSC_Custom_Field` objects. You can loop through this to get the `name` and `type` of every field in the system.
+
+**Example Implementation:**
+```php
+<?php
+/**
+ * Example function to get all SupportCandy ticket fields and their types.
+ *
+ * This function should be hooked to 'init' with a priority of 11 or higher,
+ * or any hook that runs after 'init'.
+ */
+function my_addon_get_all_field_types() {
+
+    // Access the public static property.
+    $all_fields = WPSC_Custom_Field::$custom_fields;
+
+    $field_types = array();
+
+    // Loop through the array of objects to get the data we need.
+    foreach ( $all_fields as $slug => $field_object ) {
+
+        // The 'type' property on the object is the type's class name. We need its static 'slug' property.
+        $field_type_class = $field_object->type;
+        $field_types[ $slug ] = array(
+            'label' => $field_object->name,
+            'type'  => $field_type_class::$slug // e.g., 'df_status', 'cf_single_select'
+        );
+    }
+
+    // $field_types now contains a complete, up-to-date list of all fields.
+    return $field_types;
+}
+
+add_action( 'init', 'my_addon_get_all_field_types', 11 );
+```
+
+---
+
 ### **Complete Field Type Reference**
 
 | Field `type` in Database | PHP Data Type Received | How to Get Display Name |
@@ -60,6 +106,3 @@ The `WPSC_Ticket` object uses a `__get` magic method to return values. For simpl
 | `df_prev_assignee`| `array` of `WPSC_Agent` objects | Loop through the array and get the `.name` property of each object. Then `implode(', ', $names)`. |
 | `df_tags`| `array` of `WPSC_Ticket_Tags` objects | Loop through the array and get the `.name` property of each object. Then `implode(', ', $names)`. |
 | `df_additional_recipients`| `array` of `WPSC_Customer` objects | Loop through the array and get the `.name` property of each object. Then `implode(', ', $names)`. |
-
----
-This guide should provide everything your developer needs to build a robust and reliable value formatting function for the Unified Ticket Macro.
