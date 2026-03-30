@@ -82,11 +82,11 @@ if ( ! class_exists( 'WPSC_DBC_Unassigned_Tickets' ) ) :
 			if ( $current_user->is_guest ||
 			! ( $current_user->is_agent && in_array( $current_user->agent->role, $cards[ self::$card ]['allowed-agent-roles'] ) )
 			) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$filters = array();
-			$count = WPSC_Ticket::find(
+			$count = WPSC_Ticket::count(
 				array(
 					'items_per_page' => 0,
 					'system_query'   => $current_user->get_tl_system_query( $filters ),
@@ -99,7 +99,7 @@ if ( ! class_exists( 'WPSC_DBC_Unassigned_Tickets' ) ) :
 						),
 					),
 				)
-			)['total_items'];
+			);
 			wp_send_json( array( 'count' => $count ) );
 		}
 	}

@@ -81,15 +81,18 @@ if ( ! class_exists( 'WPSC_DBC_Closed_Tickets' ) ) :
 			if ( $current_user->is_guest ||
 			! ( $current_user->is_agent && in_array( $current_user->agent->role, $cards[ self::$card ]['allowed-agent-roles'] ) )
 			) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			// closed statuses.
-			$ms_advance_settings = get_option( 'wpsc-tl-ms-advanced' );
-			$closed_statuses     = $ms_advance_settings['closed-ticket-statuses'];
+			$closed_statuses = WPSC_Functions::get_closed_statuses();
+
+			$dashboard_settings = get_option( 'wpsc-db-gs-settings' );
+			$range = $dashboard_settings['default-date-range'] ?? 'last-week';
+			$date_range = WPSC_Functions::get_dashboard_date_range( $range );
 
 			$filters = array();
-			$count = WPSC_Ticket::find(
+			$count = WPSC_Ticket::count(
 				array(
 					'items_per_page' => 0,
 					'system_query'   => $current_user->get_tl_system_query( $filters ),
@@ -100,9 +103,17 @@ if ( ! class_exists( 'WPSC_DBC_Closed_Tickets' ) ) :
 							'compare' => 'IN',
 							'val'     => $closed_statuses,
 						),
+						array(
+							'slug'    => 'date_closed',
+							'compare' => 'BETWEEN',
+							'val'     => array(
+								'operand_val_1' => $date_range[0],
+								'operand_val_2' => $date_range[1],
+							),
+						),
 					),
 				)
-			)['total_items'];
+			);
 			wp_send_json( array( 'count' => $count ) );
 		}
 	}

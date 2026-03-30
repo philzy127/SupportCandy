@@ -74,11 +74,12 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 			// change raised by event to reset unresolved and workload counts of related agents to the ticket.
 			add_action( 'wpsc_change_raised_by', array( __CLASS__, 'change_raised_by' ), 200, 4 );
 
-			// delete ticket event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_delete_ticket', array( __CLASS__, 'delete_ticket' ), 200, 1 );
-
-			// restore ticket event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_ticket_restore', array( __CLASS__, 'restore_ticket' ), 200, 1 );
+			// archive/restore/delete ticket event to reset unresolved and workload counts of related agents to the ticket.
+			add_action( 'wpsc_delete_ticket', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
+			add_action( 'wpsc_ticket_restore', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
+			add_action( 'wpsc_ticket_delete_permanently', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
+			add_action( 'wpsc_ticket_archive', array( __CLASS__, 'reset_agents_unresolved_count' ), 200, 2 );
+			add_action( 'wpsc_archive_ticket_restore', array( __CLASS__, 'reset_agents_unresolved_count' ), 200, 2 );
 
 			// agent autocomplete admin access only.
 			add_action( 'wp_ajax_wpsc_agent_autocomplete_admin_access', array( __CLASS__, 'agent_autocomplete_admin_access' ) );
@@ -885,12 +886,19 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 		 */
 		public function reset_workload() {
 
-			if ( $this->is_agentgroup ) {
+			if ( ! empty( $this->is_agentgroup ) ) {
 				return;
 			}
 
-			$more_settings = get_option( 'wpsc-tl-ms-agent-view' );
-			$response = WPSC_Ticket::find(
+			$more_settings = get_option( 'wpsc-tl-ms-agent-view', array() );
+			$statuses = isset( $more_settings['unresolved-ticket-statuses'] ) ? $more_settings['unresolved-ticket-statuses'] : array();
+			if ( empty( $statuses ) ) {
+				$this->workload = 0;
+				$this->save();
+				return;
+			}
+
+			$count = WPSC_Ticket::count(
 				array(
 					'items_per_page' => 1,
 					'meta_query'     => array(
@@ -898,7 +906,7 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 						array(
 							'slug'    => 'status',
 							'compare' => 'IN',
-							'val'     => $more_settings['unresolved-ticket-statuses'],
+							'val'     => $statuses,
 						),
 						array(
 							'slug'    => 'assigned_agent',
@@ -909,8 +917,7 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 				)
 			);
 
-			// save workload.
-			$this->workload = $response['total_items'];
+			$this->workload = (int) $count;
 			$this->save();
 		}
 
@@ -1032,43 +1039,24 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 		}
 
 		/**
-		 * Reset unresolved count and workload after delete ticket
+		 * Reset unresolved count and workload after restore archive ticket
 		 *
-		 * @param WPSC_Ticket $ticket - ticket object.
+		 * @param WPSC_Ticket         $ticket - ticket object.
+		 * @param WPSC_Archive_Ticket $ar_ticket - archive ticket object.
 		 * @return void
 		 */
-		public static function delete_ticket( $ticket ) {
+		public static function reset_agents_unresolved_count( $ticket, $ar_ticket ) {
 
-			$tl_advanced = get_option( 'wpsc-tl-ms-advanced' );
-			if ( in_array( $ticket->status->id, $tl_advanced['closed-ticket-statuses'] ) ) {
-				return;
-			}
-
-			// reset workload for applicable agents.
-			foreach ( $ticket->assigned_agent as $agent ) {
-				if ( ! $agent->is_active ) {
-					continue;
-				}
-				$agent->reset_workload();
-			}
-
-			// reset unresolved for applicable agents.
-			$agents = $ticket->get_current_read_permission_agents();
-			foreach ( $agents as $agent ) {
-				if ( ! $agent->is_active ) {
-					continue;
-				}
-				$agent->reset_unresolved_count();
-			}
+			self::reset_agent_unresolved_count( $ticket );
 		}
 
 		/**
-		 * Reset unresolved count and workload after restore ticket
+		 * Reset unresolved count and workload after archive/restore/delete ticket
 		 *
 		 * @param WPSC_Ticket $ticket - ticket object.
 		 * @return void
 		 */
-		public static function restore_ticket( $ticket ) {
+		public static function reset_agent_unresolved_count( $ticket ) {
 
 			$tl_advanced = get_option( 'wpsc-tl-ms-advanced' );
 			if ( in_array( $ticket->status->id, $tl_advanced['closed-ticket-statuses'] ) ) {
@@ -1120,7 +1108,7 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 		public static function agent_autocomplete_admin_access() {
 
 			if ( check_ajax_referer( 'wpsc_agent_autocomplete_admin_access', '_ajax_nonce', false ) !== 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
@@ -1176,6 +1164,27 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 
 				$agent->reset_unresolved_count();
 			}
+		}
+
+		/**
+		 * Count tickets based on given filters
+		 *
+		 * @param array $filter - array containing array items like search, where, etc.
+		 * @return int
+		 */
+		public static function count( $filter = array() ) {
+
+			global $wpdb;
+
+			$filter['is_active'] = isset( $filter['is_active'] ) ? $filter['is_active'] : 1;
+
+			$sql   = 'SELECT count(a.id) FROM ' . $wpdb->prefix . 'psmsc_agents a ';
+			$joins = self::get_joins( $filter );
+			$where = self::get_where( $filter );
+
+			$sql = $sql . $joins . $where;
+
+			return (int) $wpdb->get_var( $sql );
 		}
 	}
 endif;
