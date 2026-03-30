@@ -34,7 +34,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 			add_action( 'wpsc_create_new_ticket', array( __CLASS__, 'customer_ticket_count' ) );
 			add_action( 'wpsc_delete_ticket', array( __CLASS__, 'customer_ticket_count' ) );
 			add_action( 'wpsc_ticket_restore', array( __CLASS__, 'customer_ticket_count' ) );
-			add_action( 'wpsc_change_raised_by', array( __CLASS__, 'customer_ticket_count' ), 200, 4 );
+			add_action( 'wpsc_ticket_delete_permanently', array( __CLASS__, 'customer_ticket_count' ) );
+			add_action( 'wpsc_change_raised_by', array( __CLASS__, 'customer_ticket_count_after_change_raised_by' ), 200, 4 );
+			add_action( 'wpsc_ticket_archive', array( __CLASS__, 'reset_customer_ticket_count' ), 200, 2 );
+			add_action( 'wpsc_archive_ticket_restore', array( __CLASS__, 'reset_customer_ticket_count' ), 200, 2 );
+			add_action( 'wpsc_after_ticket_merge', array( __CLASS__, 'customer_ticket_count_after_ticket_merge' ), 200, 2 );
 
 			// view customer profile info.
 			add_action( 'wp_ajax_wpsc_view_customer_detailed_info', array( __CLASS__, 'view_customer_detailed_info' ) );
@@ -229,21 +233,21 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 				$agent = WPSC_Agent::get_by_customer( $customer );
 				ob_start();
 				?>
-				<a href="javascript:wpsc_view_customer_info(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_view_customer_info' ) ); ?>')" class="wpsc-link">
+				<span class="wpsc-link" onclick="wpsc_view_customer_info(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_view_customer_info' ) ); ?>')">
 					<?php esc_attr_e( 'View', 'supportcandy' ); ?>
-				</a> |
-				<a href="javascript:wpsc_get_edit_customer_info(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_get_edit_customer_info' ) ); ?>')" class="wpsc-link">
+				</span> |
+				<span class="wpsc-link" onclick="wpsc_get_edit_customer_info(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_get_edit_customer_info' ) ); ?>')">
 					<?php esc_attr_e( 'Edit', 'supportcandy' ); ?>
-				</a> |
-				<a href="javascript:wpsc_view_customer_logs(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_view_customer_logs' ) ); ?>')" class="wpsc-link">
+				</span> |
+				<span class="wpsc-link" onclick="wpsc_view_customer_logs(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_view_customer_logs' ) ); ?>')">
 					<?php esc_attr_e( 'Logs', 'supportcandy' ); ?>
-				</a>
+				</span>
 				<?php
 				if ( ! $agent->id || ( $agent->role != 1 ) ) {
 					?>
-					| <a href="javascript:wpsc_delete_customer(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_delete_customer' ) ); ?>')" class="wpsc-link">
+					| <span class="wpsc-link" onclick="wpsc_delete_customer(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_delete_customer' ) ); ?>')">
 						<?php esc_attr_e( 'Delete', 'supportcandy' ); ?>
-					</a>
+					</span>
 					<?php
 				}
 				?>
@@ -251,7 +255,7 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 				$actions = ob_get_clean();
 
 				$data[] = array(
-					'name'    => '<a class="wpsc-link" href="javascript:wpsc_view_customer_detailed_info( ' . $customer->id . ', \'' . wp_create_nonce( 'wpsc_view_customer_detailed_info' ) . '\' )">' . $customer->name . '<a>',
+					'name'    => '<span class="wpsc-link" onclick="wpsc_view_customer_detailed_info( ' . $customer->id . ', \'' . wp_create_nonce( 'wpsc_view_customer_detailed_info' ) . '\' )">' . esc_html( $customer->name ) . '</span>',
 					'email'   => $customer->email,
 					'type'    => ! is_object( $customer->user ) ? esc_attr__( 'Guest', 'supportcandy' ) : esc_attr__( 'Registered', 'supportcandy' ),
 					'tickets' => $customer->ticket_count,
@@ -277,11 +281,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function view_customer_info() {
 
 			if ( check_ajax_referer( 'wpsc_view_customer_info', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
@@ -376,11 +380,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function get_edit_customer_info() {
 
 			if ( check_ajax_referer( 'wpsc_get_edit_customer_info', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
@@ -462,11 +466,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function set_edit_customer_info() {
 
 			if ( check_ajax_referer( 'wpsc_set_edit_customer_info', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['id'] ) ? intval( $_POST['id'] ) : 0;
@@ -525,11 +529,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function view_customer_logs() {
 
 			if ( check_ajax_referer( 'wpsc_view_customer_logs', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
@@ -672,6 +676,44 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		}
 
 		/**
+		 * Count customer tickets after merge ticket
+		 *
+		 * @param WPSC_Ticket $prev_ticket - previous ticket object.
+		 * @param WPSC_Ticket $new_ticket - new ticket object.
+		 * @return void
+		 */
+		public static function customer_ticket_count_after_ticket_merge( $prev_ticket, $new_ticket ) {
+
+			$prev_ticket->customer->update_ticket_count();
+		}
+
+		/**
+		 * Count customer tickets after create/delete/restore ticket
+		 *
+		 * @param WPSC_Ticket $ticket - ticket object.
+		 * @param int         $prev - previous customer id.
+		 * @param int         $new - new customer id.
+		 * @param int         $customer_id - current customer id.
+		 * @return void
+		 */
+		public static function customer_ticket_count_after_change_raised_by( $ticket, $prev, $new, $customer_id ) {
+
+			$ticket->customer->update_ticket_count();
+		}
+
+		/**
+		 * Count customer archive tickets after restore ticket
+		 *
+		 * @param WPSC_Ticket         $ticket - ticket object.
+		 * @param WPSC_Archive_Ticket $ar_ticket - archive ticket object.
+		 * @return void
+		 */
+		public static function reset_customer_ticket_count( $ticket, $ar_ticket ) {
+
+			$ticket->customer->update_ticket_count();
+		}
+
+		/**
 		 * Count customer tickets after create/delete/restore ticket
 		 *
 		 * @param WPSC_Ticket $ticket - ticket object.
@@ -690,11 +732,11 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function delete_customer_info() {
 
 			if ( check_ajax_referer( 'wpsc_delete_customer', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
@@ -712,7 +754,7 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 			if ( $agent->id ) {
 
 				if ( $agent->role == 1 ) {
-					wp_send_json_error( 'Unauthorised request!', 401 );
+					wp_send_json_error( 'Unauthorized request!', 401 );
 				}
 
 				$agent->customer = WPSC_Functions::anonymous_customer();
@@ -777,7 +819,7 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function view_customer_detailed_info() {
 
 			if ( check_ajax_referer( 'wpsc_view_customer_detailed_info', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$customer_id = isset( $_POST['customer_id'] ) ? intval( $_POST['customer_id'] ) : 0;
@@ -797,9 +839,9 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 				<?php
 				if ( ! $agent->id || ( $agent->role != 1 ) ) {
 					?>
-					| <a href="javascript:wpsc_delete_customer(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_delete_customer' ) ); ?>')" class="wpsc-link">
+					| <span class="wpsc-link" onclick="wpsc_delete_customer(<?php echo esc_attr( $customer->id ); ?>, '<?php echo esc_attr( wp_create_nonce( 'wpsc_delete_customer' ) ); ?>')">
 						<?php esc_attr_e( 'Delete', 'supportcandy' ); ?>
-					</a>
+					</span>
 					<?php
 				}
 				?>
@@ -1044,7 +1086,7 @@ if ( ! class_exists( 'WPSC_Customers' ) ) :
 		public static function get_upw_recent_activities() {
 
 			if ( check_ajax_referer( 'general', '_ajax_nonce', false ) != 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			if ( ! WPSC_Functions::is_site_admin() ) {

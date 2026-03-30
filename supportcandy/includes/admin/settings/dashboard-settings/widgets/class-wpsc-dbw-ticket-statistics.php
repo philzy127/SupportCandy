@@ -205,7 +205,7 @@ if ( ! class_exists( 'WPSC_DBW_Ticket_Statistics' ) ) :
 		public static function run_ts_reports() {
 
 			if ( check_ajax_referer( 'ticket_statistics', '_ajax_nonce', false ) !== 1 ) {
-				wp_send_json_error( 'Unauthorised request!', 401 );
+				wp_send_json_error( 'Unauthorized request!', 401 );
 			}
 
 			$current_user = WPSC_Current_User::$current_user;
@@ -272,8 +272,7 @@ if ( ! class_exists( 'WPSC_DBW_Ticket_Statistics' ) ) :
 			}
 
 			// closed statuses.
-			$ms_advance_settings = get_option( 'wpsc-tl-ms-advanced' );
-			$closed_statuses     = $ms_advance_settings['closed-ticket-statuses'];
+			$closed_statuses = WPSC_Functions::get_closed_statuses();
 
 			$response = array();
 			$filters = array();
@@ -323,8 +322,7 @@ if ( ! class_exists( 'WPSC_DBW_Ticket_Statistics' ) ) :
 			);
 			$args['system_query'] = $current_user->get_tl_system_query( $filters );
 			$args['meta_query']  = array_merge( $meta_query, $created_meta_query );
-			$results             = WPSC_Ticket::find( $args );
-			$response['created'] = $results['total_items'];
+			$response['created'] = WPSC_Ticket::count( $args );
 
 			// closed.
 			$closed_meta_query  = array(
@@ -343,8 +341,7 @@ if ( ! class_exists( 'WPSC_DBW_Ticket_Statistics' ) ) :
 				),
 			);
 			$args['meta_query'] = array_merge( $meta_query, $closed_meta_query );
-			$results            = WPSC_Ticket::find( $args );
-			$response['closed'] = $results['total_items'];
+			$response['closed'] = WPSC_Ticket::count( $args );
 
 			wp_send_json( $response, 200 );
 		}

@@ -311,20 +311,20 @@ if ( ! class_exists( 'WPSC_Ticket' ) ) :
 			);
 
 			// Delete threads for the ticket.
-			$success = $wpdb->delete(
+			$deleted_threads = $wpdb->delete(
 				$wpdb->prefix . 'psmsc_threads',
 				array( 'ticket' => $ticket->id )
 			);
-			if ( ! $success ) {
+			if ( false === $deleted_threads ) {
 				return false;
 			}
 
 			// Finally delete ticket.
-			$success = $wpdb->delete(
+			$deleted_ticket = $wpdb->delete(
 				$wpdb->prefix . 'psmsc_tickets',
 				array( 'id' => $ticket->id )
 			);
-			if ( ! $success ) {
+			if ( false === $deleted_ticket ) {
 				return false;
 			}
 
@@ -992,6 +992,28 @@ if ( ! class_exists( 'WPSC_Ticket' ) ) :
 			)['results'];
 
 			return $results ? $results[0] : false;
+		}
+
+		/**
+		 * Count tickets based on given filters
+		 *
+		 * @param array $filter - array containing array items like search, where, etc.
+		 * @return int
+		 */
+		public static function count( $filter = array() ) {
+
+			global $wpdb;
+
+			$filter['is_active'] = isset( $filter['is_active'] ) ? $filter['is_active'] : 1;
+			$filter['orderby_slug'] = isset( $filter['orderby'] ) ? $filter['orderby'] : '';
+
+			$sql   = 'SELECT COUNT(DISTINCT t.id) FROM ' . $wpdb->prefix . 'psmsc_tickets t ';
+			$joins = self::get_joins( $filter );
+			$where = self::get_where( $filter );
+
+			$sql = $sql . $joins . $where;
+
+			return (int) $wpdb->get_var( $sql );
 		}
 	}
 endif;
