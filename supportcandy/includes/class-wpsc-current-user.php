@@ -165,16 +165,40 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 		}
 
 		/**
+		 * Return customer object by WordPress user ID.
+		 *
+		 * @param int $user_id - WordPress user ID.
+		 * @return WPSC_Customer
+		 */
+		public static function get_customer_by_user_id( $user_id ) {
+
+			$user_id = absint( $user_id );
+			if ( ! $user_id ) {
+				return new WPSC_Customer();
+			}
+
+			return WPSC_Customer::get_by_user_id( $user_id );
+		}
+
+		/**
 		 * Load current wpsc user
 		 *
 		 * @return void
 		 */
 		public static function load_current_user() {
 
-			global $current_user;
+			// Use wp_get_current_user() rather than the raw global - the
+			// global is only populated once something has actually called
+			// wp_get_current_user() (or a function that does, like
+			// is_user_logged_in()) earlier in the request. Nothing guarantees
+			// that has happened yet by the 'init' hook (where this runs), so
+			// reading the raw global directly can see an empty, not-yet-resolved
+			// WP_User and wrongly treat a logged-in visitor as a guest for the
+			// rest of the request.
+			$wp_user = wp_get_current_user();
 
 			// wp logged-in user.
-			$email = $current_user && $current_user->ID ? $current_user->user_email : '';
+			$email = $wp_user && $wp_user->ID ? $wp_user->user_email : '';
 			if ( $email ) {
 				self::$current_user = new WPSC_Current_User( $email );
 				self::$login_type   = 'registered';
@@ -187,12 +211,12 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 			$login_auth = isset( $_COOKIE['wpsc_guest_login_auth'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['wpsc_guest_login_auth'] ) ) : '';
 			$login_auth = $login_auth ? json_decode( $login_auth ) : false;
 
-			if ( ! $login_auth ) {
+			if ( ! $login_auth || ! is_object( $login_auth ) || ! isset( $login_auth->token ) || ! is_string( $login_auth->token ) ) {
 				self::$current_user = new WPSC_Current_User();
 				return;
 			}
 
-			$login_auth->email = $login_auth->email ? sanitize_email( $login_auth->email ) : '';
+			$login_auth->email = isset( $login_auth->email ) && is_string( $login_auth->email ) ? sanitize_email( $login_auth->email ) : '';
 			if ( ! $login_auth->email ) {
 				self::$current_user = new WPSC_Current_User();
 				return;
@@ -526,7 +550,6 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 					<small id="wpsc-email-available" style="color: #4cd137;font-style:italic;display:none;"><?php esc_attr_e( 'Email is available!', 'supportcandy' ); ?></small>
 					<script>
 						jQuery('#wpsc-email').change(function(){
-							console.log('email changed');
 							jQuery('#wpsc-email-available').hide();
 							jQuery('#wpsc-email-unavailable').hide();
 							var email = jQuery(this).val().trim();
@@ -549,27 +572,100 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 				<?php
 
 				// recaptcha.
-				if ( $recaptcha['allow-recaptcha'] === 1 && $recaptcha['recaptcha-version'] == 2 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
+				if ( $recaptcha['captcha-provider'] === 'google-recaptcha' && $recaptcha['recaptcha-version'] == 2 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
 					$unique_id = uniqid( 'wpsc_' );
 					?>
-				<script src="https://www.google.com/recaptcha/api.js?onload=recaptchaCallback&render=explicit" async defer></script> <?php // phpcs:ignore ?>
-				<div id="<?php echo esc_attr( $unique_id ); ?>" data-sitekey="" style="margin-bottom: 5px;"></div>
-				<script>
-					var recaptchaCallback = function() {
-						var obj = jQuery('#<?php echo esc_attr( $unique_id ); ?>');
-						grecaptcha.render(obj.attr("id"), {
-							"sitekey" : "<?php echo esc_attr( $recaptcha['recaptcha-site-key'] ); ?>",
-							"callback" : function(token) {
-								obj.closest('form').find(".g-recaptcha-response").val(token);
-							}
-						});
-					}
-				</script>
+					<script src="https://www.google.com/recaptcha/api.js?onload=recaptchaCallback&render=explicit" async defer></script> <?php // phpcs:ignore ?>
+					<div id="<?php echo esc_attr( $unique_id ); ?>" data-sitekey="" style="margin-bottom: 5px;"></div>
+					<script>
+						var recaptchaCallback = function() {
+							var obj = jQuery('#<?php echo esc_attr( $unique_id ); ?>');
+							grecaptcha.render(obj.attr("id"), {
+								"sitekey" : "<?php echo esc_attr( $recaptcha['recaptcha-site-key'] ); ?>",
+								"callback" : function(token) {
+									obj.closest('form').find(".g-recaptcha-response").val(token);
+								}
+							});
+						}
+					</script>
 					<?php
 				}
-				if ( $recaptcha['allow-recaptcha'] === 1 && $recaptcha['recaptcha-version'] == 3 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
+				if ( $recaptcha['captcha-provider'] === 'google-recaptcha' && $recaptcha['recaptcha-version'] == 3 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
 					?>
 					<script src="https://www.google.com/recaptcha/api.js?render=<?php echo esc_attr( $recaptcha['recaptcha-site-key'] ); ?>"></script> <?php // phpcs:ignore ?>
+					<?php
+				}
+				if ( $recaptcha['captcha-provider'] === 'cloudflare-turnstile' && $recaptcha['cloudflare-site-key'] && $recaptcha['cloudflare-secret-key'] ) {
+					?>
+					<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script> <?php // phpcs:ignore ?>
+					<div class="wpsc-tff turnstile wpsc-xs-12 wpsc-sm-12 wpsc-md-12 wpsc-lg-12 required wpsc-visible" data-cft="turnstile">
+						<div class="cf-turnstile" data-sitekey="<?php echo esc_attr( $recaptcha['cloudflare-site-key'] ); ?>"></div>
+					</div>
+					<script>
+						jQuery(document).ready(function() {
+
+							function wpscInitTurnstileWidgets() {
+
+								if (
+									typeof window.turnstile === 'undefined' ||
+									typeof window.turnstile.render !== 'function'
+								) {
+									return false;
+								}
+
+								jQuery('.cf-turnstile').each(function() {
+
+									var widget = jQuery(this);
+
+									if (
+										widget.find('input[name="cf-turnstile-response"]').length ||
+										widget.find('iframe').length ||
+										widget.attr('data-wpsc-rendered') === '1'
+									) {
+
+										widget.attr('data-wpsc-rendered', '1');
+
+										return;
+									}
+
+									window.turnstile.render(
+										this,
+										{
+											sitekey: widget.data('sitekey')
+										}
+									);
+
+									widget.attr('data-wpsc-rendered', '1');
+								});
+
+								return true;
+							}
+
+							if (wpscInitTurnstileWidgets()) {
+								return;
+							}
+
+							var attempts = 0;
+
+							var timer = setInterval(
+								function() {
+
+									attempts++;
+
+									if (
+										wpscInitTurnstileWidgets() ||
+										attempts > 50
+									) {
+
+										clearInterval(timer);
+									}
+
+								},
+								100
+							);
+
+						});
+					</script>
 					<?php
 				}
 				do_action( 'wpsc_registration_form' );
@@ -606,7 +702,7 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 						<?php
 					}
 					?>
-				<div>
+				</div>
 
 				<button class="wpsc-button normal primary" onclick="wpsc_set_default_registration(this)"><?php esc_attr_e( 'Sign Up', 'supportcandy' ); ?></button>
 				<button class="wpsc-button normal secondary" onclick="window.location.reload();"><?php esc_attr_e( 'Cancel', 'supportcandy' ); ?></button>
@@ -1096,9 +1192,12 @@ if ( ! class_exists( 'WPSC_Current_User' ) ) :
 			$data = json_decode( $otp->data );
 
 			if (
-				isset( $data->auth_type ) &&
+				isset( $data->auth_type, $data->auth_token, $login_auth->token ) &&
+				is_string( $data->auth_token ) && $data->auth_token !== '' &&
+				is_string( $login_auth->token ) &&
 				( ( $data->auth_type == 'login' && $page_settings['otp-login'] && in_array( 'guest', $gs['allow-create-ticket'] ) ) || $data->auth_type == 'open-ticket' ) &&
-				( $otp->date_expiry > $now && $data->auth_token == $login_auth->token )
+				$otp->date_expiry > $now &&
+				hash_equals( $data->auth_token, $login_auth->token )
 			) {
 				self::$login_type       = 'guest';
 				self::$guest_login_type = $data->auth_type;

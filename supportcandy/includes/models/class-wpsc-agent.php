@@ -66,20 +66,20 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 			add_action( 'wpsc_create_new_ticket', array( __CLASS__, 'create_new_ticket' ), 500 );
 
 			// change status event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_change_ticket_status', array( __CLASS__, 'change_status' ), 200, 4 );
+			add_action( 'wpsc_change_ticket_status', array( __CLASS__, 'change_status' ), 500, 4 );
 
 			// assigned agent event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_change_assignee', array( __CLASS__, 'change_assignee' ), 200, 4 );
+			add_action( 'wpsc_change_assignee', array( __CLASS__, 'change_assignee' ), 500, 4 );
 
 			// change raised by event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_change_raised_by', array( __CLASS__, 'change_raised_by' ), 200, 4 );
+			add_action( 'wpsc_change_raised_by', array( __CLASS__, 'change_raised_by' ), 500, 4 );
 
 			// archive/restore/delete ticket event to reset unresolved and workload counts of related agents to the ticket.
-			add_action( 'wpsc_delete_ticket', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
-			add_action( 'wpsc_ticket_restore', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
-			add_action( 'wpsc_ticket_delete_permanently', array( __CLASS__, 'reset_agent_unresolved_count' ), 200 );
-			add_action( 'wpsc_ticket_archive', array( __CLASS__, 'reset_agents_unresolved_count' ), 200, 2 );
-			add_action( 'wpsc_archive_ticket_restore', array( __CLASS__, 'reset_agents_unresolved_count' ), 200, 2 );
+			add_action( 'wpsc_delete_ticket', array( __CLASS__, 'reset_agent_unresolved_count' ), 500 );
+			add_action( 'wpsc_ticket_restore', array( __CLASS__, 'reset_agent_unresolved_count' ), 500 );
+			add_action( 'wpsc_ticket_delete_permanently', array( __CLASS__, 'reset_agent_unresolved_count' ), 500 );
+			add_action( 'wpsc_ticket_archive', array( __CLASS__, 'reset_agents_unresolved_count' ), 500, 2 );
+			add_action( 'wpsc_archive_ticket_restore', array( __CLASS__, 'reset_agents_unresolved_count' ), 500, 2 );
 
 			// agent autocomplete admin access only.
 			add_action( 'wp_ajax_wpsc_agent_autocomplete_admin_access', array( __CLASS__, 'agent_autocomplete_admin_access' ) );
@@ -1185,6 +1185,44 @@ if ( ! class_exists( 'WPSC_Agent' ) ) :
 			$sql = $sql . $joins . $where;
 
 			return (int) $wpdb->get_var( $sql );
+		}
+
+		/**
+		 * Check current user ticket access for capability
+		 *
+		 * @param WPSC_Ticket|WPSC_Archive_Ticket $ticket Ticket object.
+		 * @param string                          $cap - capability name.
+		 * @return boolean
+		 */
+		public static function has_ticket_cap( $ticket, $cap ) {
+
+			$current_user = WPSC_Current_User::$current_user;
+
+			$assigned_agents = array_map(
+				fn ( $agent ) => $agent->id,
+				$ticket->assigned_agent
+			);
+
+			$flag = false;
+			if (
+				(
+					! $ticket->assigned_agent &&
+					$current_user->agent->has_cap( $cap . '-unassigned' )
+				) ||
+				(
+					in_array( $current_user->agent->id, $assigned_agents ) &&
+					$current_user->agent->has_cap( $cap . '-assigned-me' )
+				) ||
+				(
+					$ticket->assigned_agent &&
+					! in_array( $current_user->agent->id, $assigned_agents ) &&
+					$current_user->agent->has_cap( $cap . '-assigned-others' )
+				)
+			) {
+				$flag = true;
+			}
+
+			return apply_filters( 'wpsc_it_has_ticket_cap', $flag, $ticket, $cap );
 		}
 	}
 endif;

@@ -1,5 +1,37 @@
 == Changelog ==
 
+= 3.5.2 (August 11, 2026) =
+* New: Added chatbot auto-popup setting
+* Fix: Addressed security vulnerability issue
+
+= 3.5.1 (July 30, 2026) =
+* New: Added AI assistant features (polish, draft, summary)
+* New: Introduced chatbot agent feature
+* Fix: Auto-archive closed tickets setting not working
+* Fix: Customer ticket count not updating
+* Fix: Agent collision widget shows names with avatars
+* Fix: WPML pages issue with custom script loading
+* Fix: Ticket list search not working
+
+= 3.5.0 (June 30, 2026) =
+* Fix: Tickets going to archived unexpectedly
+
+= 3.4.9 (June 30, 2026) =
+* New: Added AI chatbot in Productivity Suite (Pro)
+* Fix: Addressed reported security vulnerability
+* New: Introduced new developer hook
+
+= 3.4.8 (June 04, 2026) =
+* New: Added Cloudflare CAPTCHA integration
+* Fix: Resolved PHP notice issues
+
+= 3.4.7 (May 26, 2026) =
+* New: Option to disable email notifications for specific tickets
+* New: Improved form validation to highlight incomplete fields on submission
+* New: Agent collision widget added
+* Fix: Security vulnerability resolved
+* Fix: Email notifications not sent to agents assigned via workflows
+
 = 3.4.6 (March 23, 2026) =
 * New: Added Merge Ticket feature (Pro) in Productivity Suite.
 * New: Added AI Assistant feature (Pro) in Productivity Suite.

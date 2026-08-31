@@ -21,6 +21,10 @@ if ( ! class_exists( 'WPSC_Functions' ) ) :
 
 			// Load ref classes.
 			add_action( 'init', array( __CLASS__, 'load_ref_classes' ), 1 );
+
+			// Refresh paid customer option when plugins state changes.
+			add_action( 'activated_plugin', array( __CLASS__, 'update_paid_customer_status_option' ) );
+			add_action( 'deactivated_plugin', array( __CLASS__, 'update_paid_customer_status_option' ), 99 );
 		}
 
 		/**
@@ -1299,7 +1303,7 @@ if ( ! class_exists( 'WPSC_Functions' ) ) :
 						get_permalink( $support_page )
 					);
 
-				} elseif ( $ticket_url_page === 'open-ticket-page' && $open_page && ! empty( $ticket->auth_code ) ) {
+				} elseif ( $ticket_url_page === 'open-ticket-page' && $open_page && $ticket->auth_code ) {
 
 					$url = add_query_arg(
 						array(
@@ -1311,7 +1315,7 @@ if ( ! class_exists( 'WPSC_Functions' ) ) :
 				}
 			}
 
-			if ( empty( $url ) ) {
+			if ( ! $url ) {
 				$url = $admin_url;
 			}
 
@@ -1344,6 +1348,158 @@ if ( ! class_exists( 'WPSC_Functions' ) ) :
 				)
 			);
 			return array_map( 'strval', $closed_statuses ); // Ensure indexed array.
+		}
+
+		/**
+		 * Check whether any SupportCandy addon is active.
+		 *
+		 * @return bool
+		 */
+		public static function is_paid_customer() {
+
+			$cache_key = 'wpsc_is_paid_customer';
+			$cached_status = get_option( $cache_key, null );
+
+			if ( null !== $cached_status ) {
+				return (bool) $cached_status;
+			}
+
+			return self::update_paid_customer_status_option();
+		}
+
+		/**
+		 * Update the paid customer status option based on active addons.
+		 *
+		 * @param string $plugin - Optional plugin path to exclude from check (used during activation/deactivation).
+		 * @return bool Updated paid customer status.
+		 */
+		public static function update_paid_customer_status_option( $plugin = '' ) {
+			$cache_key = 'wpsc_is_paid_customer';
+
+			$addon_plugins = array(
+				'wpsc-agentgroup/wpsc-agentgroup.php',
+				'wpsc-assign-agent-rules/wpsc-assign-agent-rules.php',
+				'wpsc-automatic-close-ticket/wpsc-automatic-close-ticket.php',
+				'wpsc-canned-reply/wpsc-canned-reply.php',
+				'wpsc-edd/wpsc-edd.php',
+				'wpsc-email-marketing-tools/wpsc-email-marketing-tools-integration.php',
+				'wpsc-email-piping/wpsc-email-piping.php',
+				'wpsc-export-ticket/wpsc-export-ticket.php',
+				'wpsc-gravity-forms/wpsc-gravity-form-integration.php',
+				'wpsc-lms/wpsc-lms.php',
+				'wpsc-pressapps-knowledge-base/wpsc-pressapps-knowledge-base.php',
+				'wpsc-print-ticket/wpsc-print-ticket.php',
+				'wpsc-private-credentials/wpsc_private_credentials.php',
+				'wpsc-productivity-suite/wpsc-productivity-suite.php',
+				'wpsc-reports/wpsc-reports.php',
+				'wpsc-satisfaction-survey/wpsc-satisfaction-survey.php',
+				'wpsc-schedule-tickets/wpsc-schedule-tickets.php',
+				'wpsc-sla/wpsc-sla.php',
+				'wpsc-slack/wpsc-slack.php',
+				'wpsc-timer/wpsc-timer.php',
+				'wpsc-ultimate-faq/wpsc-ultimate-faq.php',
+				'wpsc-usergroup/wpsc-usergroup.php',
+				'wpsc-webhooks/wpsc-webhooks.php',
+				'wpsc-woocommerce/wpsc-woocommerce.php',
+				'wpsc-workflows/wpsc-workflows.php',
+			);
+
+			$active_plugins = (array) get_option( 'active_plugins', array() );
+
+			if ( current_filter() === 'deactivated_plugin' && ! empty( $plugin ) ) {
+				$active_plugins = array_diff( $active_plugins, array( $plugin ) );
+			}
+
+			if ( is_multisite() ) {
+				$active_network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
+				$active_plugins = array_merge( $active_plugins, array_keys( $active_network_plugins ) );
+			}
+
+			$is_paid_customer = ! empty( array_intersect( $addon_plugins, $active_plugins ) );
+			update_option( $cache_key, $is_paid_customer ? 1 : 0 );
+			return (bool) $is_paid_customer;
+		}
+
+		/**
+		 * Whether SupportCandy front-end scripts/styles should load on the current page,
+		 * based on Settings -> General -> Page settings -> Load scripts.
+		 *
+		 * Translation aware: if the current page is a WPML or Polylang translation of a
+		 * page selected in the 'Custom' list, scripts still load - the settings screen can
+		 * only ever store the ID of the page in the language active while saving.
+		 *
+		 * @return bool
+		 */
+		public static function is_load_scripts_page() {
+
+			$page_settings = get_option( 'wpsc-gs-page-settings' );
+
+			$load = true;
+
+			if ( isset( $page_settings['load-scripts'] ) && $page_settings['load-scripts'] === 'custom' ) {
+
+				$current_id = get_the_id();
+				$pages      = isset( $page_settings['load-script-pages'] ) ? (array) $page_settings['load-script-pages'] : array();
+
+				$load = $current_id && self::page_id_in_pages_or_translations( $current_id, $pages );
+			}
+
+			return (bool) apply_filters( 'wpsc_load_frontend_scripts', $load, $page_settings );
+		}
+
+		/**
+		 * Check if given post id matches (directly or via translation) any of the given page ids.
+		 *
+		 * @param int   $current_id current post id.
+		 * @param array $page_ids   selected page ids from settings.
+		 * @return bool
+		 */
+		private static function page_id_in_pages_or_translations( $current_id, $page_ids ) {
+
+			if ( in_array( $current_id, $page_ids ) ) { // phpcs:ignore WordPress.PHP.StrictInArray.MissingTrueStrict
+				return true;
+			}
+
+			foreach ( $page_ids as $page_id ) {
+
+				// WPML.
+				if ( has_filter( 'wpml_object_id' ) ) {
+					$translated_id = apply_filters( 'wpml_object_id', $page_id, 'page', false );
+					if ( $translated_id && (int) $translated_id === (int) $current_id ) {
+						return true;
+					}
+				}
+
+				// Polylang.
+				if ( function_exists( 'pll_get_post_translations' ) ) {
+					$translations = pll_get_post_translations( $page_id );
+					if ( in_array( $current_id, $translations ) ) { // phpcs:ignore WordPress.PHP.StrictInArray.MissingTrueStrict
+						return true;
+					}
+				}
+			}
+
+			return false;
+		}
+
+		/**
+		 * Get current active language code, if a multilingual plugin is active.
+		 *
+		 * @return string|null
+		 */
+		public static function get_current_language_code() {
+
+			if ( has_filter( 'wpml_current_language' ) ) {
+				$lang = apply_filters( 'wpml_current_language', null );
+				return $lang ? $lang : null;
+			}
+
+			if ( function_exists( 'pll_current_language' ) ) {
+				$lang = pll_current_language();
+				return $lang ? $lang : null;
+			}
+
+			return null;
 		}
 	}
 endif;

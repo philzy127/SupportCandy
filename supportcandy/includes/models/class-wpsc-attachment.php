@@ -552,7 +552,7 @@ if ( ! class_exists( 'WPSC_Attachment' ) ) :
 			}
 
 			$recaptcha = get_option( 'wpsc-recaptcha-settings' );
-			if ( $recaptcha['allow-recaptcha'] === 1 && $recaptcha['recaptcha-version'] == 3 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
+			if ( $recaptcha['captcha-provider'] === 'google-recaptcha' && $recaptcha['recaptcha-version'] == 3 && $recaptcha['recaptcha-site-key'] && $recaptcha['recaptcha-secret-key'] ) {
 				WPSC_MS_Recaptcha::validate( 'file_upload' );
 			}
 
@@ -651,7 +651,15 @@ if ( ! class_exists( 'WPSC_Attachment' ) ) :
 				$attachments = self::find(
 					array(
 						'search'         => $search,
-						'items_per_page' => 0,
+						'items_per_page' => 500,
+						'meta_query'     => array(
+							'relation' => 'AND',
+							array(
+								'slug'    => 'is_active',
+								'compare' => '=',
+								'val'     => '1',
+							),
+						),
 					)
 				)['results'];
 				if ( $attachments ) {
